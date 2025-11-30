@@ -749,8 +749,6 @@ const InterviewUI: React.FC<InterviewUIProps> = ({ sessionId }) => {
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8">
-      
-
       {/* Fallback Mode Banner */}
       {fallbackMode && (
         <div className="mb-4 p-3 bg-orange-100 border border-orange-300 rounded-lg">
@@ -853,29 +851,29 @@ const InterviewUI: React.FC<InterviewUIProps> = ({ sessionId }) => {
             />
           </div>
 
-          {/* Question Navigation */}
+          {/* Question Navigation (numbers hidden here - compact nav moved to monitor panel) */}
           <QuestionsSections
             activeQuestionIndex={activeQuestionIndex}
             setActiveQuestionIndex={setActiveQuestionIndex}
             mockInterviewQuestion={interviewData}
             answers={answers}
+            showNumbers={false}
           />
+
+          {/* Move recording UI under the questions per requested layout change */}
+          <div className="mt-4">
+            <RecordAnswerSection
+              activeQuestionIndex={activeQuestionIndex}
+              mockInterviewQuestion={interviewData}
+              sessionId={sessionId}
+              onAnswerSubmitted={handleAnswerSubmitted}
+            />
+          </div>
         </div>
 
         {/* RIGHT CONTAINER: Camera Monitor and Recording */}
         <div className="bg-white rounded-xl shadow-sm border p-4 h-fit">
-          {/* Calibration Notice */}
-          {/* {isCalibrating && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-2 text-blue-700">
-                <span className="animate-pulse">🎯</span>
-                <span className="text-sm font-medium">
-                  Calibrating detection (5s)... Position your face in center and
-                  look at camera.
-                </span>
-              </div>
-            </div>
-          )} */}
+         
 
           {/* Camera Monitor */}
           <div className="flex items-center justify-between mb-4">
@@ -905,17 +903,7 @@ const InterviewUI: React.FC<InterviewUIProps> = ({ sessionId }) => {
               className="w-full aspect-video object-cover transform scaleX-[-1]"
               style={{ backgroundColor: "#1f2937" }}
               onLoadedMetadata={() => {
-                // console.log("📹 Video metadata loaded", {
-                //   videoWidth: videoRef.current?.videoWidth,
-                //   videoHeight: videoRef.current?.videoHeight,
-                //   readyState: videoRef.current?.readyState,
-                //   paused: videoRef.current?.paused,
-                //   srcObject: videoRef.current?.srcObject
-                //     ? "has stream"
-                //     : "no stream",
-                // });
-
-                // Check if video dimensions are zero (common cause of black screen)
+               
                 if (
                   videoRef.current &&
                   (videoRef.current.videoWidth === 0 ||
@@ -1079,13 +1067,43 @@ const InterviewUI: React.FC<InterviewUIProps> = ({ sessionId }) => {
             </div>
           </div>
 
-          {/* Recording Section */}
-          <RecordAnswerSection
-            activeQuestionIndex={activeQuestionIndex}
-            mockInterviewQuestion={interviewData}
-            sessionId={sessionId}
-            onAnswerSubmitted={handleAnswerSubmitted}
-          />
+          {/* Compact Question Navigation placed below the monitor (numbers only) */}
+          <div className="mb-4">
+            <div className="flex flex-wrap gap-2 mb-2">
+              {interviewData.map((question, index) => {
+                const questionId = question._id;
+                const isAnswered = questionId && answers[questionId];
+                const isActive = activeQuestionIndex === index;
+
+                let buttonClasses =
+                  "w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-all ";
+
+                if (isActive) {
+                  buttonClasses += "bg-blue-600 text-white shadow-md";
+                } else if (isAnswered) {
+                  buttonClasses += "bg-green-600 text-white shadow-md";
+                } else {
+                  buttonClasses +=
+                    "bg-gray-100 text-gray-700 hover:bg-gray-200";
+                }
+
+                return (
+                  <button
+                    key={index}
+                    onClick={() => setActiveQuestionIndex(index)}
+                    className={buttonClasses}
+                    aria-label={`Go to question ${index + 1}`}
+                  >
+                    {index + 1}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="bg-yellow-50 rounded-lg p-3 text-sm text-yellow-700">
+              <strong>Pro Tip:</strong> Click "Record Answer" in the main panel
+              when you're ready to answer.
+            </div>
+          </div>
         </div>
       </div>
 

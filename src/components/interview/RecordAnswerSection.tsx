@@ -307,12 +307,6 @@ const RecordAnswerSection: React.FC<RecordAnswerSectionProps> = ({
           ) : (
             <span>
               Question {activeQuestionIndex + 1} Response
-              {mockInterviewQuestion[activeQuestionIndex] && (
-                <span className="text-sm font-normal text-gray-500 ml-2">
-                  (ID:{" "}
-                  {mockInterviewQuestion[activeQuestionIndex]._id.slice(-6)})
-                </span>
-              )}
             </span>
           )}
         </h2>
@@ -323,48 +317,6 @@ const RecordAnswerSection: React.FC<RecordAnswerSectionProps> = ({
           {isVideoOn ? <Video size={20} /> : <VideoOff size={20} />}
         </button>
       </div>
-
-      {/* <div className="relative bg-black rounded-lg overflow-hidden mb-4 aspect-video">
-        {cameraError ? (
-          <div className="w-full h-full bg-red-900/20 flex items-center justify-center p-4">
-            <div className="text-center">
-              <VideoOff size={48} className="text-red-400 mx-auto mb-2" />
-              <div className="text-red-300 text-sm">{cameraError}</div>
-              <button
-                onClick={checkCameraPermissions}
-                className="mt-2 px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
-              >
-                Retry Camera
-              </button>
-            </div>
-          </div>
-        ) : isMounted && isVideoOn ? (
-          <Webcam
-            ref={webcamRef}
-            audio={false}
-            mirrored={true}
-            className="w-full h-full object-cover"
-            onUserMediaError={(error: any) => {
-              toast.error(
-                "❌ Failed to access camera. Please check permissions.",
-                { id: `camera-usermedia-error-${sessionId}` }
-              );
-              setCameraError(
-                "Failed to access camera. Please check permissions."
-              );
-            }}
-          />
-        ) : (
-          <div className="w-full h-full bg-gray-900 flex items-center justify-center">
-            <VideoOff size={48} className="text-gray-600" />
-            {!isMounted && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-gray-400 text-sm">Loading camera...</div>
-              </div>
-            )}
-          </div>
-        )}
-      </div> */}
 
       <div className="mb-4 min-h-20 p-3 bg-gray-50 rounded-lg border">
         {userAnswer ? (

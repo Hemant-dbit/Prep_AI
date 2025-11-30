@@ -45,7 +45,7 @@ export async function GET(request) {
     let limits;
     if (user.isPremium) {
       limits = {
-        interviews: 10,
+        interviews: 40,
         resumes: 20
       }
     } else {

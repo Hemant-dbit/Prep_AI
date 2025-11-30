@@ -7,6 +7,9 @@ interface Props {
   activeQuestionIndex: number;
   setActiveQuestionIndex: (index: number) => void;
   answers?: Record<string, any>;
+  // When false, hide the large numbered navigation (useful when placing
+  // a compact version elsewhere in the layout)
+  showNumbers?: boolean;
 }
 
 const QuestionsSection = ({
@@ -14,6 +17,7 @@ const QuestionsSection = ({
   activeQuestionIndex,
   setActiveQuestionIndex,
   answers = {},
+  showNumbers = true,
 }: Props) => {
   const textToSpeech = (text: string) => {
     if ("speechSynthesis" in window) {
@@ -26,9 +30,10 @@ const QuestionsSection = ({
 
   return (
     mockInterviewQuestion && (
-      <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-        <div className="flex flex-wrap gap-3 mb-6">
-          {mockInterviewQuestion.map((question, index) => {
+      <div >
+        {showNumbers && (
+          <div className="flex flex-wrap gap-3 mb-6">
+            {mockInterviewQuestion.map((question, index) => {
             const questionId = question._id || question.id;
             const isAnswered = questionId && answers[questionId];
             const isActive = activeQuestionIndex === index;
@@ -59,29 +64,11 @@ const QuestionsSection = ({
                 {index + 1}
               </button>
             );
-          })}
-        </div>
-
-        {/* <div className="bg-blue-50 rounded-lg p-5 mb-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
-            <HelpCircle className="text-blue-600" size={20} />
-            Question Navigation
-          </h2>
-          <p className="text-gray-600 text-sm">
-            Use the numbered buttons above to navigate between questions. The AI
-            interviewer will read each question aloud.
-          </p>
-        </div> */}
-
-        <div className="bg-yellow-50 rounded-lg p-5 border border-yellow-100 mb-0 ">
-          <div className="flex items-center gap-3 text-yellow-700 ">
-            <Lightbulb size={20} />
-            <h3 className="font-medium">Pro Tip</h3>
+            })}
           </div>
-          <p className="text-yellow-700 text-sm ">
-            {"Click on Record Answer when you want to answer the question."}
-          </p>
-        </div>
+        )}
+
+        
       </div>
     )
   );
