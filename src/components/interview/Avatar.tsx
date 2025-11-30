@@ -41,37 +41,45 @@ const Avatar: React.FC<AvatarProps> = ({
   // Greeting effect - runs once when component mounts
   useEffect(() => {
     if (hasGreeted || !userName || !autoSpeak) return;
+
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       setHasGreeted(true);
       onGreetingComplete?.();
       return;
     }
 
-    // Always continue with audio regardless of avatar variant
+    const speakGreeting = () => {
+      const hour = new Date().getHours();
+      let greeting = "Hello";
+      if (hour < 12) greeting = "Good morning";
+      else if (hour < 18) greeting = "Good afternoon";
+      else greeting = "Good evening";
 
-    const hour = new Date().getHours();
-
-    let greeting = "Hello";
-    if (hour < 12) greeting = "Good morning";
-    else if (hour < 18) greeting = "Good afternoon";
-    else greeting = "Good evening";
-
-    const greetingText = `${greeting}, ${userName}. Welcome to your professional interview session. I will be your interviewer today. Let's begin.`;
-
-    const timer = setTimeout(() => {
+      const greetingText = `${greeting}, ${userName}. Welcome to your professional interview session. I will be your interviewer today. Let's begin.`;
       const u = new SpeechSynthesisUtterance(greetingText);
       u.rate = 0.9;
 
+      // FORCE FEMALE VOICE FOR GREETING
       const voices = window.speechSynthesis.getVoices();
-      // Only handle female voice since we're only playing audio for female avatars
+
       const femaleVoice =
         voices.find(
           (voice) =>
             voice.name.toLowerCase().includes("female") ||
             voice.name.toLowerCase().includes("woman") ||
             voice.name.toLowerCase().includes("zira") ||
-            voice.name.toLowerCase().includes("susan")
-        ) ;
+            voice.name.toLowerCase().includes("hazel") ||
+            voice.name.toLowerCase().includes("susan") ||
+            voice.name.toLowerCase().includes("samantha") ||
+            voice.name.toLowerCase().includes("cortana") ||
+            voice.name.toLowerCase().includes("eva")
+        ) ||
+        voices.find(
+          (voice) =>
+            voice.lang.startsWith("en") &&
+            !voice.name.toLowerCase().includes("male")
+        );
+
       if (femaleVoice) u.voice = femaleVoice;
       u.pitch = 1.3;
 
@@ -87,14 +95,19 @@ const Avatar: React.FC<AvatarProps> = ({
         onGreetingComplete?.();
       };
 
-      utterRef.current = u;
       window.speechSynthesis.speak(u);
-    }, 1000);
-
-    return () => {
-      if (timer) clearTimeout(timer);
     };
-  }, [userName, variant, autoSpeak, hasGreeted, onGreetingComplete]);
+
+    // ❗Voice not loaded yet → wait for voiceschanged
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.addEventListener("voiceschanged", speakGreeting, {
+        once: true,
+      });
+    } else {
+      speakGreeting();
+    }
+  }, [userName, autoSpeak, hasGreeted, onGreetingComplete]);
+
 
   useEffect(() => {
     if (!autoSpeak || !text || !hasGreeted) return;
@@ -171,10 +184,7 @@ const Avatar: React.FC<AvatarProps> = ({
 
     // Select appropriate voice based on variant
     const voices = window.speechSynthesis.getVoices();
-    // console.log(
-    //   "Replay - Available voices:",
-    //   voices.map((v) => ({ name: v.name, lang: v.lang }))
-    // );
+    
 
     if (variant === "professional_female") {
       // Find female voice
