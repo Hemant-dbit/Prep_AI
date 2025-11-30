@@ -71,12 +71,7 @@ const Avatar: React.FC<AvatarProps> = ({
             voice.name.toLowerCase().includes("woman") ||
             voice.name.toLowerCase().includes("zira") ||
             voice.name.toLowerCase().includes("susan")
-        ) ||
-        voices.find(
-          (voice) =>
-            voice.lang.startsWith("en") &&
-            !voice.name.toLowerCase().includes("male")
-        );
+        ) ;
       if (femaleVoice) u.voice = femaleVoice;
       u.pitch = 1.3;
 
