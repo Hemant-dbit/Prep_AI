@@ -39,7 +39,7 @@
     "jspdf": "^3.0.3",
     "lucide-react": "^0.542.0",
     "multer": "^2.0.2",
-    "next": "15.4.5",
+    "next": "15.4.10",
     "pdf-parse": "^1.1.1",
     "pdf-poppler": "^0.2.1",
     "pdf2json": "^4.0.3",
