@@ -16,6 +16,9 @@ const eslintConfig = [
       "@typescript-eslint/no-this-alias": "off",
       "@typescript-eslint/no-require-imports": "off",
       "@typescript-eslint/no-explicit-any": "warn",
+      "react/no-unescaped-entities": "off",
+      "react/display-name": "off",
+      "prefer-const": "off",
     },
   }
 ];
