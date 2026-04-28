@@ -125,7 +125,7 @@ Return only valid JSON format.`;
       model: "llama-3.3-70b-versatile",
       messages: [{ role: "user", content: prompt }],
     });
-    const text = completion.choices[0].message.content;
+    const text = completion.choices[0].message.content ?? "";
 
     try {
       // Try to parse the JSON response
