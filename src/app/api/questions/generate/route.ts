@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+// Initialize Groq AI
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "" });
 
 type QuestionCategory = "frontend" | "backend" | "devops" | "mobile";
 
@@ -92,14 +92,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.GROQ_API_KEY) {
       return NextResponse.json(
-        { error: "Gemini API key not configured" },
+        { error: "Groq API key not configured" },
         { status: 500 }
       );
     }
-
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const prompt = `${categoryPrompts[category as QuestionCategory]}
 
@@ -123,9 +121,11 @@ Make sure each question is:
 
 Return only valid JSON format.`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = completion.choices[0].message.content;
 
     try {
       // Try to parse the JSON response

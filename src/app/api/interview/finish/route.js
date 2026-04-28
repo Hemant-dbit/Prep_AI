@@ -1,35 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 
 const prisma = new PrismaClient();
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // Temporary storage reference (shared with answer route)
 const temporaryScores = new Map();
 const temporaryAnswers = new Map();
-
-// Rate limiting for Gemini API
-const apiCallTracker = {
-  calls: [],
-  maxCallsPerMinute: 8, // Stay under the 10 call/minute limit
-
-  canMakeCall() {
-    const now = Date.now();
-    const oneMinuteAgo = now - 60000;
-
-    // Remove calls older than 1 minute
-    this.calls = this.calls.filter((timestamp) => timestamp > oneMinuteAgo);
-
-    return this.calls.length < this.maxCallsPerMinute;
-  },
-
-  recordCall() {
-    this.calls.push(Date.now());
-  },
-};
 
 export async function POST(request) {
   try {
@@ -99,62 +79,40 @@ export async function POST(request) {
       const totalQuestions = session.questions.length;
       const answeredQuestions = session.answers.length;
 
-      if (answeredQuestions === 0) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "No answers found for this session",
-          },
-          { status: 400 }
-        );
+      // Calculate individual question scores using AI (batched single call)
+      // Only call Groq if there are answered questions and session wasn't terminated
+      const answeredPairs = session.questions
+        .map((q) => ({ question: q, answer: session.answers.find((a) => a.questionId === q.id) }))
+        .filter(({ answer }) => !!answer);
+
+      let questionResults;
+      if (answeredPairs.length === 0 || session.status === "TERMINATED") {
+        // No answers or terminated — skip AI call, use fallback scores
+        questionResults = answeredPairs.map(({ question, answer }) => ({
+          answerId: answer.id,
+          questionId: question.id,
+          questionText: question.questionText,
+          answer: answer.candidateAnswer,
+          submittedAt: answer.submittedAt,
+          ...getFallbackScore(answer.candidateAnswer),
+        }));
+      } else {
+        questionResults = await batchScoreAnswers(answeredPairs, session);
       }
 
-      // Calculate individual question scores using AI
-      const questionResults = [];
-
-      for (const question of session.questions) {
-        const answer = session.answers.find(
-          (a) => a.questionId === question.id
-        );
-
-        if (answer) {
-          // Generate AI-powered feedback and score
-          const aiResult = await generateFeedbackAndScore(
-            question.questionText,
-            answer.candidateAnswer,
-            session
-          );
-
-          // Store the score back to database
-          await prisma.answer.update({
-            where: { id: answer.id },
-            data: {
-              score: aiResult.score,
-              feedback: aiResult.feedback,
-              strengths: aiResult.strengths,
-              improvements: aiResult.improvements,
-            },
-          });
-
-          questionResults.push({
-            questionId: question.id,
-            questionText: question.questionText,
-            answer: answer.candidateAnswer,
-            score: aiResult.score,
-            feedback: aiResult.feedback,
-            strengths: aiResult.strengths,
-            improvements: aiResult.improvements,
-            submittedAt: answer.submittedAt,
-          });
-        }
-      }
+      // Store scores back to database
+      await Promise.all(
+        questionResults.map(({ answerId, score, feedback, strengths, improvements }) =>
+          prisma.answer.update({
+            where: { id: answerId },
+            data: { score, feedback, strengths, improvements },
+          })
+        )
+      );
 
       // Calculate overall score
-      const totalScore = questionResults.reduce(
-        (sum, result) => sum + result.score,
-        0
-      );
-      const averageScore = totalScore / questionResults.length;
+      const totalScore = questionResults.reduce((sum, result) => sum + result.score, 0);
+      const averageScore = questionResults.length > 0 ? totalScore / questionResults.length : 0;
       const completionPercentage = (answeredQuestions / totalQuestions) * 100;
 
       // Update session as completed
@@ -347,143 +305,98 @@ function getFallbackScore(answer) {
   };
 }
 
-async function generateFeedbackAndScore(questionText, answer, session) {
+async function batchScoreAnswers(answeredPairs, session) {
+  // Build context once
+  let contextInfo = "";
+  if (session.jd?.parsedData) {
+    contextInfo += `Job Role: ${session.jd.parsedData.jobRole || "N/A"}\n`;
+    contextInfo += `Experience Level: ${session.jd.parsedData.experienceLevel || "N/A"} years\n`;
+    contextInfo += `Required Skills: ${session.jd.parsedData.skills?.join(", ") || "N/A"}\n`;
+  }
+  if (session.resume?.parsedData) {
+    const r = session.resume.parsedData;
+    contextInfo += `Candidate Skills: ${Array.isArray(r.skills) ? r.skills.join(", ") : "N/A"}\n`;
+    contextInfo += `Candidate Experience: ${
+      Array.isArray(r.experience) ? r.experience.map((e) => `${e.position} at ${e.company}`).join("; ") : "N/A"
+    }\n`;
+  }
+
+  // Use fallback if no API key
+  if (!process.env.GROQ_API_KEY) {
+    console.warn("⚠️ Groq API not configured, using fallback scoring");
+    return answeredPairs.map(({ question, answer }) => ({
+      answerId: answer.id,
+      questionId: question.id,
+      questionText: question.questionText,
+      answer: answer.candidateAnswer,
+      submittedAt: answer.submittedAt,
+      ...getFallbackScore(answer.candidateAnswer),
+    }));
+  }
+
+  // Build batched prompt
+  const questionsBlock = answeredPairs
+    .map(
+      ({ question, answer }, i) =>
+        `Q${i + 1}: ${question.questionText}\nA${i + 1}: ${answer.candidateAnswer}`
+    )
+    .join("\n\n");
+
+  const prompt = `You are an expert interviewer. Evaluate each answer below and return a JSON array.
+
+CONTEXT:
+${contextInfo}
+
+ANSWERS TO EVALUATE:
+${questionsBlock}
+
+Return a JSON array with exactly ${answeredPairs.length} objects in the same order:
+[
+  {
+    "score": <1-10>,
+    "feedback": "<detailed feedback>",
+    "strengths": "<what was done well>",
+    "improvements": "<specific areas to improve>"
+  }
+]
+
+SCORING: 1-2 irrelevant/nonsensical, 3-4 poor, 5-6 below average, 7-8 good, 9-10 excellent.
+Only return the JSON array, no extra text.`;
+
   try {
-    // Check if Gemini API is available and rate limit
-    if (!genAI || !process.env.GEMINI_API_KEY) {
-      console.warn("⚠️ Gemini API not configured, using fallback scoring");
-      return getFallbackScore(answer);
-    }
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = completion.choices[0].message.content;
+    const cleanedText = text.replace(/```json\n?|\n?```/g, "").trim();
+    const jsonStart = cleanedText.indexOf("[");
+    const jsonEnd = cleanedText.lastIndexOf("]");
+    const evaluations = JSON.parse(cleanedText.slice(jsonStart, jsonEnd + 1));
 
-    // Check rate limit before making API call
-    if (!apiCallTracker.canMakeCall()) {
-      console.warn("⚠️ API rate limit reached, using fallback scoring");
-      return getFallbackScore(answer);
-    }
-
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-
-    // Get context about the job and candidate
-    let contextInfo = "";
-    if (session.jd && session.jd.parsedData) {
-      contextInfo += `Job Role: ${session.jd.parsedData.jobRole || "N/A"}\n`;
-      contextInfo += `Experience Level: ${
-        session.jd.parsedData.experienceLevel || "N/A"
-      } years\n`;
-      contextInfo += `Required Skills: ${
-        session.jd.parsedData.skills
-          ? session.jd.parsedData.skills.join(", ")
-          : "N/A"
-      }\n`;
-    }
-
-    if (session.resume && session.resume.parsedData) {
-      const resumeData = session.resume.parsedData;
-      contextInfo += `Candidate Skills: ${
-        Array.isArray(resumeData.skills) ? resumeData.skills.join(", ") : "N/A"
-      }\n`;
-      contextInfo += `Candidate Experience: ${
-        Array.isArray(resumeData.experience)
-          ? resumeData.experience
-              .map((exp) => `${exp.position} at ${exp.company}`)
-              .join("; ")
-          : "N/A"
-      }\n`;
-    }
-
-    const prompt = `
-    You are an expert interviewer evaluating a candidate's response. Please provide a detailed assessment.
-
-    CONTEXT:
-    ${contextInfo}
-
-    QUESTION: ${questionText}
-
-    CANDIDATE'S ANSWER: ${answer}
-
-    Please evaluate this answer and respond with a JSON object containing:
-    {
-      "score": <number from 1-10>,
-      "feedback": "<detailed feedback about the answer>",
-      "strengths": "<what the candidate did well>",
-      "improvements": "<specific areas for improvement>"
-    }
-
-    SCORING CRITERIA:
-    1-2: Completely irrelevant, nonsensical, or no meaningful content
-    3-4: Very poor answer, major gaps in understanding
-    5-6: Below average, some relevant points but lacks depth
-    7-8: Good answer with solid understanding and relevant details
-    9-10: Excellent answer demonstrating deep knowledge and clear communication
-
-    Be strict with scoring. Short, generic, or irrelevant answers should score 1-3. Only well-thought-out, detailed, and relevant answers should score 7+.
-
-    Provide constructive feedback that helps the candidate improve.
-    `;
-
-    // Record the API call for rate limiting
-    apiCallTracker.recordCall();
-
-    // Add timeout and retry logic for API calls
-    const result = await Promise.race([
-      model.generateContent(prompt),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("API timeout")), 15000)
-      ),
-    ]);
-
-    const response = await result.response;
-    const text = response.text();
-
-    // Parse the JSON response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        const evaluation = JSON.parse(jsonMatch[0]);
-
-        // Ensure score is within valid range
-        evaluation.score = Math.max(1, Math.min(10, evaluation.score));
-
-        return {
-          score: evaluation.score,
-          feedback: evaluation.feedback || "No specific feedback provided.",
-          strengths:
-            evaluation.strengths || "No specific strengths identified.",
-          improvements:
-            evaluation.improvements || "No specific improvements suggested.",
-        };
-      } catch (parseError) {
-        console.error("❌ JSON parsing error:", parseError);
-        // Fall through to fallback logic
-      }
-    }
-
-    // Fallback if JSON parsing fails - give a reasonable score
-    const answerLength = answer.trim().length;
-    const fallbackScore = answerLength < 10 ? 2 : answerLength < 50 ? 4 : 6;
-
-    return {
-      score: fallbackScore,
-      feedback:
-        "Unable to generate detailed AI feedback. Score based on answer length and relevance.",
-      strengths: "Response was submitted successfully.",
-      improvements:
-        "Try to provide more detailed and relevant answers to demonstrate your knowledge.",
-    };
+    return answeredPairs.map(({ question, answer }, i) => {
+      const ev = evaluations[i] || {};
+      return {
+        answerId: answer.id,
+        questionId: question.id,
+        questionText: question.questionText,
+        answer: answer.candidateAnswer,
+        submittedAt: answer.submittedAt,
+        score: Math.max(1, Math.min(10, ev.score || 5)),
+        feedback: ev.feedback || "No feedback provided.",
+        strengths: ev.strengths || "No strengths identified.",
+        improvements: ev.improvements || "No improvements suggested.",
+      };
+    });
   } catch (error) {
-    console.error("❌ Error generating AI feedback:", error);
-
-    // Handle specific API quota errors
-    if (
-      error.status === 429 ||
-      (error.message && error.message.includes("quota"))
-    ) {
-      console.warn("⚠️ API quota exceeded, using fallback scoring");
-    } else if (error.message && error.message.includes("timeout")) {
-      console.warn("⚠️ API timeout, using fallback scoring");
-    }
-
-    // Use the same fallback logic as the helper function
-    return getFallbackScore(answer);
+    console.error("❌ Batch scoring failed:", error?.message || error);
+    return answeredPairs.map(({ question, answer }) => ({
+      answerId: answer.id,
+      questionId: question.id,
+      questionText: question.questionText,
+      answer: answer.candidateAnswer,
+      submittedAt: answer.submittedAt,
+      ...getFallbackScore(answer.candidateAnswer),
+    }));
   }
 }

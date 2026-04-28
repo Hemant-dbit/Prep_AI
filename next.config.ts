@@ -1,7 +1,4 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
+const nextConfig = {
+  serverExternalPackages: ["pdf2json"],
+  // ...rest of your config
 };
-
-export default nextConfig;

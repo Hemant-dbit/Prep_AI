@@ -1,43 +1,22 @@
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 import { PrismaClient } from "@prisma/client";
 
-// Initialize Gemini AI and Prisma
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Initialize Groq AI and Prisma
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const prisma = new PrismaClient();
 
-// Function to extract text from PDF using Gemini Vision API
-async function extractTextFromPDFWithAI(buffer) {
+// Function to extract text from PDF using pdf-parse
+async function extractTextFromPDF(buffer) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-    const prompt = `
-      Please extract all text content from this PDF document. 
-      Return only the plain text content, maintaining the structure and formatting as much as possible.
-      This appears to be a resume/CV document.
-    `;
-
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          mimeType: "application/pdf",
-          data: buffer.toString("base64"),
-        },
-      },
-    ]);
-
-    const extractedText = result.response.text();
-    console.log(
-      "📄 PDF text extracted, length:",
-      extractedText.length,
-      "chars"
-    );
-    return extractedText;
+    const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
+    const data = await pdfParse(buffer);
+    console.log("📄 PDF text extracted, length:", data.text.length, "chars");
+    return data.text;
   } catch (error) {
-    console.error("PDF AI extraction error:", error);
-    throw new Error("Failed to extract text from PDF using AI");
+    console.error("❌ PDF extraction failed:", error?.message || error);
+    throw new Error("Failed to extract text from PDF");
   }
 }
 
@@ -123,10 +102,12 @@ Please ensure all scores are realistic and constructive. Provide specific, actio
 `;
 
       try {
-        // Use the stable Gemini Pro model
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        const result = await model.generateContent(textAnalysisPrompt);
-        const responseText = result.response.text();
+        // Use Groq AI for text analysis
+        const completion = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: textAnalysisPrompt }],
+        });
+        const responseText = completion.choices[0].message.content;
 
         // Parse and return the analysis
         let analysis;
@@ -137,7 +118,7 @@ Please ensure all scores are realistic and constructive. Provide specific, actio
           }
           analysis = JSON.parse(jsonMatch[0]);
         } catch (parseError) {
-          console.error("Failed to parse Gemini response:", responseText);
+          console.error("Failed to parse Groq response:", responseText);
           return NextResponse.json(
             { error: "Failed to parse AI response. Please try again." },
             { status: 500 }
@@ -182,7 +163,7 @@ Please ensure all scores are realistic and constructive. Provide specific, actio
           message: "Text Resume analyzed successfully",
         });
       } catch (aiError) {
-        console.error("Gemini AI Error:", aiError);
+        console.error("Groq AI Error:", aiError);
         return NextResponse.json(
           {
             error:
@@ -212,16 +193,16 @@ Please ensure all scores are realistic and constructive. Provide specific, actio
       // Convert file to buffer for AI-based PDF text extraction
       const buffer = await resumeFile.arrayBuffer();
 
-      // Extract text from PDF using Gemini AI
+      // Extract text from PDF using pdf-parse
       let resumeText;
       try {
-        resumeText = await extractTextFromPDFWithAI(Buffer.from(buffer));
+        resumeText = await extractTextFromPDF(Buffer.from(buffer));
       } catch (pdfError) {
-        console.error("PDF AI extraction error:", pdfError);
+        console.error("PDF extraction error:", pdfError);
         return NextResponse.json(
           {
             error:
-              "Failed to extract text from PDF using AI. Please ensure the PDF contains readable text.",
+              "Failed to extract text from PDF. Please ensure the PDF contains readable text.",
           },
           { status: 400 }
         );
@@ -280,13 +261,12 @@ Please ensure all scores are realistic and constructive. Provide specific, actio
 `;
 
       try {
-        // Use the stable Gemini Pro model for PDF analysis
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-        // Generate content using text analysis (since we extracted text from PDF)
-        const result = await model.generateContent(pdfAnalysisPrompt);
-
-        const responseText = result.response.text();
+        // Use Groq AI for PDF analysis
+        const completion = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: pdfAnalysisPrompt }],
+        });
+        const responseText = completion.choices[0].message.content;
 
         // Parse and return the analysis
         let analysis;
@@ -297,7 +277,7 @@ Please ensure all scores are realistic and constructive. Provide specific, actio
           }
           analysis = JSON.parse(jsonMatch[0]);
         } catch (parseError) {
-          console.error("Failed to parse Gemini response:", responseText);
+          console.error("Failed to parse Groq response:", responseText);
           return NextResponse.json(
             { error: "Failed to parse AI response. Please try again." },
             { status: 500 }
@@ -342,7 +322,7 @@ Please ensure all scores are realistic and constructive. Provide specific, actio
           message: "PDF Resume analyzed successfully",
         });
       } catch (aiError) {
-        console.error("Gemini AI Error:", aiError);
+        console.error("Groq AI Error:", aiError);
         return NextResponse.json(
           {
             error:

@@ -1,35 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 
 const prisma = new PrismaClient();
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // In-memory storage for answers when database is unavailable
 const temporaryAnswers = new Map();
 const temporaryScores = new Map();
-
-// Rate limiting for Gemini API (shared with finish route)
-const apiCallTracker = {
-  calls: [],
-  maxCallsPerMinute: 8, // Stay under the 10 call/minute limit
-
-  canMakeCall() {
-    const now = Date.now();
-    const oneMinuteAgo = now - 60000;
-
-    // Remove calls older than 1 minute
-    this.calls = this.calls.filter((timestamp) => timestamp > oneMinuteAgo);
-
-    return this.calls.length < this.maxCallsPerMinute;
-  },
-
-  recordCall() {
-    this.calls.push(Date.now());
-  },
-};
 
 export async function POST(request) {
   try {
@@ -193,19 +173,11 @@ function getFallbackScore(answer) {
 
 async function generateFeedbackAndScore(questionText, answer, session) {
   try {
-    // Check if Gemini API is available and rate limit
-    if (!genAI || !process.env.GEMINI_API_KEY) {
-      console.warn("⚠️ Gemini API not configured, using fallback scoring");
+    // Check if Groq API is available
+    if (!process.env.GROQ_API_KEY) {
+      console.warn("⚠️ Groq API not configured, using fallback scoring");
       return getFallbackScore(answer);
     }
-
-    // Check rate limit before making API call
-    if (!apiCallTracker.canMakeCall()) {
-      console.warn("⚠️ API rate limit reached, using fallback scoring");
-      return getFallbackScore(answer);
-    }
-
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     // Get context about the job and candidate
     let contextInfo = "";
@@ -263,19 +235,11 @@ async function generateFeedbackAndScore(questionText, answer, session) {
       Only return the JSON object, no additional text.
     `;
 
-    // Record the API call for rate limiting
-    apiCallTracker.recordCall();
-
-    // Add timeout for API calls
-    const result = await Promise.race([
-      model.generateContent(prompt),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("API timeout")), 10000)
-      ),
-    ]);
-
-    const response = await result.response;
-    const text = response.text();
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = completion.choices[0].message.content;
 
     // Clean and parse the response
     try {

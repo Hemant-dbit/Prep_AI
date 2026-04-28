@@ -1,51 +1,27 @@
 const { NextResponse } = require("next/server");
 const { PrismaClient } = require("@prisma/client");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const Groq = require("groq-sdk");
 const jwt = require("jsonwebtoken");
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET;
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Function to extract text from PDF using Gemini Vision API
-async function extractTextFromPDFWithAI(buffer) {
+// Function to extract text from PDF using pdf-parse
+async function extractTextFromPDF(buffer) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-    const prompt = `
-      Please extract all text content from this PDF document. 
-      Return only the plain text content, maintaining the structure and formatting as much as possible.
-      This appears to be a resume/CV document.
-    `;
-
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          mimeType: "application/pdf",
-          data: buffer.toString("base64"),
-        },
-      },
-    ]);
-
-    const extractedText = result.response.text();
-    // Log extracted text length for debugging
-    console.log(
-      "📄 PDF text extracted, length:",
-      extractedText.length,
-      "chars"
-    );
-    return extractedText;
+    const pdfParse = require("pdf-parse/lib/pdf-parse.js");
+    const data = await pdfParse(buffer);
+    console.log("📄 PDF text extracted, length:", data.text.length, "chars");
+    return data.text;
   } catch (error) {
-    // Fallback to basic text
-    return "PDF content extraction failed - proceeding with filename analysis";
+    console.error("❌ PDF extraction failed:", error?.message || error);
+    return "";
   }
 }
 
-// Helper function to parse resume using Gemini AI
 async function parseResumeWithAI(resumeText) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const prompt = `
       You are an expert resume parser. Parse the following resume text and extract structured information.
@@ -92,14 +68,20 @@ async function parseResumeWithAI(resumeText) {
       Only return the JSON object, no additional text.
     `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = completion.choices[0].message.content;
 
     // Clean and parse the response
     const cleanedText = text.replace(/```json\n?|\n?```/g, "").trim();
-    return JSON.parse(cleanedText);
+    const jsonStart = cleanedText.indexOf("{");
+    const jsonEnd = cleanedText.lastIndexOf("}");
+    const jsonStr = cleanedText.slice(jsonStart, jsonEnd + 1);
+    return JSON.parse(jsonStr);
   } catch (error) {
+    console.error("❌ AI resume parsing failed:", error?.message || error);
     // Return basic structure if AI parsing fails
     return {
       name: "",
@@ -122,7 +104,7 @@ async function POST(request) {
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(
         { error: "Unauthorized - No token provided" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -158,7 +140,7 @@ async function POST(request) {
       } catch (createError) {
         return NextResponse.json(
           { error: "User account issue - please login again" },
-          { status: 401 }
+          { status: 401 },
         );
       }
     }
@@ -171,16 +153,16 @@ async function POST(request) {
     if (!file) {
       return NextResponse.json(
         { error: "No resume file provided" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Convert file to buffer
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Extract text from PDF using AI
-    console.log("🔄 Extracting text from PDF using Gemini AI...");
-    const extractedText = await extractTextFromPDFWithAI(buffer);
+    console.log("🔄 Extracting text from PDF...");
+    const extractedText = await extractTextFromPDF(buffer);
+    console.log(extractedText)
 
     // Parse the extracted text with AI
     console.log("🧠 Parsing extracted text with AI...");
@@ -261,14 +243,14 @@ async function POST(request) {
     } catch (dbError) {
       return NextResponse.json(
         { error: "Failed to save resume to database" },
-        { status: 500 }
+        { status: 500 },
       );
     }
   } catch (error) {
     console.error("Server error:", error);
     return NextResponse.json(
       { error: "Internal server error: " + error.message },
-      { status: 500 }
+      { status: 500 },
     );
   } finally {
     // keep Prisma client alive across requests in dev/server mode
@@ -284,7 +266,7 @@ async function GET(request) {
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(
         { error: "Unauthorized - No token provided" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -321,7 +303,7 @@ async function GET(request) {
     console.error("Server error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   } finally {
     await prisma.$disconnect();

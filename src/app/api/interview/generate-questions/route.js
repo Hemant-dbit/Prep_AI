@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 import jwt from "jsonwebtoken";
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Initialize Groq AI
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 async function POST(request) {
   try {
@@ -93,12 +93,10 @@ async function POST(request) {
       });
     }
 
-    // Generate questions using Gemini AI
+    // Generate questions using Groq AI
     // Processing interview setup for the specified role and experience level
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
       // Prepare resume data for the prompt
       let resumeInfo = "";
       if (session.resume && session.resume.parsedData) {
@@ -232,16 +230,20 @@ async function POST(request) {
         IMPORTANT: Make every question feel like it was crafted specifically for this candidate and this role. Avoid generic questions.
       `;
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [{ role: "user", content: prompt }],
+      });
+      const text = completion.choices[0].message.content;
 
       // Parse the AI response
       let questionsData;
       try {
         // Clean the response to extract JSON
         const cleanedText = text.replace(/```json\n?|\n?```/g, "").trim();
-        questionsData = JSON.parse(cleanedText);
+        const jsonStart = cleanedText.indexOf("{");
+        const jsonEnd = cleanedText.lastIndexOf("}");
+        questionsData = JSON.parse(cleanedText.slice(jsonStart, jsonEnd + 1));
       } catch (parseError) {
         console.error("Error parsing AI response:", parseError);
         console.error("AI Response:", text);
@@ -449,7 +451,7 @@ async function POST(request) {
         questionsCreated: createdQuestions.count,
       });
     } catch (aiError) {
-      console.error("Error with Gemini AI:", aiError);
+      console.error("Error with Groq AI:", aiError);
 
       // Return fallback questions if AI fails
       const fallbackQuestions = [
