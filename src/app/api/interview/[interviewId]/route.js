@@ -47,7 +47,10 @@ export async function GET(request, { params }) {
         resume: true,
         questions: {
           include: {
-            answers: true,
+            answers: {
+              orderBy: { submittedAt: "desc" },
+              take: 1,
+            },
           },
           orderBy: {
             order: "asc",
