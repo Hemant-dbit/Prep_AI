@@ -1,76 +1,33 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { verifyToken } from "@/lib/auth/helpers.js";
-
-const prisma = new PrismaClient();
+import { verifyAuth } from "@/server/lib/auth";
+import { prisma } from "@/server/lib/prisma";
 
 export async function GET(request) {
+  const { decoded, error } = verifyAuth(request);
+  if (error) return error;
+
   try {
-    const token = request.headers.get("authorization")?.replace("Bearer ", "");
-
-    if (!token) {
-      return NextResponse.json(
-        { error: "Authorization token required" },
-        { status: 401 }
-      );
-    }
-
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    const userId = decoded.userId;
-
-    // Fetch completed interview sessions with their results
     const completedInterviews = await prisma.interviewSession.findMany({
-      where: {
-        userId: userId,
-        status: "COMPLETED",
-      },
+      where: { userId: decoded.userId, status: "COMPLETED" },
       include: {
         jd: true,
         resume: true,
-        questions: {
-          include: {
-            answers: true,
-          },
-        },
-        _count: {
-          select: {
-            questions: true,
-            answers: true,
-          },
-        },
+        questions: { include: { answers: true } },
+        _count: { select: { questions: true, answers: true } },
       },
-      orderBy: {
-        startedAt: "desc",
-      },
+      orderBy: { startedAt: "desc" },
     });
 
-    // Process the data to include calculated scores and completion info
-    const processedInterviews = completedInterviews.map((session) => {
-      const totalQuestions = session._count.questions;
-      const totalAnswers = session._count.answers;
-      const completionPercentage =
-        totalQuestions > 0
-          ? Math.round((totalAnswers / totalQuestions) * 100)
-          : 0;
+    const processed = completedInterviews.map((s) => {
+      const totalQuestions = s._count.questions;
+      const totalAnswers = s._count.answers;
+      const completionPercentage = totalQuestions > 0 ? Math.round((totalAnswers / totalQuestions) * 100) : 0;
 
-      // Calculate overall score from answers
-      const answersWithScores = session.questions
-        .flatMap((q) => q.answers)
-        .filter((answer) => answer.score !== null);
+      const answersWithScores = s.questions.flatMap((q) => q.answers).filter((a) => a.score !== null);
+      const overallScore = answersWithScores.length > 0
+        ? answersWithScores.reduce((sum, a) => sum + (a.score || 0), 0) / answersWithScores.length
+        : 0;
 
-      const overallScore =
-        answersWithScores.length > 0
-          ? answersWithScores.reduce(
-            (sum, answer) => sum + (answer.score || 0),
-            0
-          ) / answersWithScores.length
-          : 0;
-
-      // Determine grade
       let grade = "Not Graded";
       if (overallScore >= 9) grade = "Excellent";
       else if (overallScore >= 8) grade = "Very Good";
@@ -80,40 +37,25 @@ export async function GET(request) {
       else if (overallScore > 0) grade = "Needs Improvement";
 
       return {
-        id: session.id,
-        jobRole:
-          session.jd?.parsedData?.title ||
-          session.jd?.parsedData?.jobRole ||
-          "Unknown Position",
-        experienceLevel:
-          session.jd?.parsedData?.expReq ||
-          session.jd?.parsedData?.experienceLevel ||
-          "0",
-        createdAt: session.endedAt || session.startedAt || session.createdAt,
-        updatedAt: session.updatedAt,
+        id: s.id,
+        jobRole: s.jd?.parsedData?.title || s.jd?.parsedData?.jobRole || "Unknown Position",
+        experienceLevel: s.jd?.parsedData?.expReq || s.jd?.parsedData?.experienceLevel || "0",
+        createdAt: s.endedAt || s.startedAt || s.createdAt,
+        updatedAt: s.updatedAt,
         overallScore: parseFloat(overallScore.toFixed(1)),
-        grade: grade,
-        totalQuestions: totalQuestions,
+        grade,
+        totalQuestions,
         answeredQuestions: totalAnswers,
-        completionPercentage: completionPercentage,
-        status: session.status,
+        completionPercentage,
+        status: s.status,
       };
     });
 
     return NextResponse.json({
       success: true,
-      data: {
-        interviews: processedInterviews,
-        totalCompleted: processedInterviews.length,
-      },
+      data: { interviews: processed, totalCompleted: processed.length },
     });
-  } catch (error) {
-    console.error("❌ Error fetching completed interviews:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  } finally {
-    // keep Prisma client alive across requests in dev/server mode
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

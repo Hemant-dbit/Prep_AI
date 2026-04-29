@@ -1,60 +1,24 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import jwt from "jsonwebtoken"
+import { verifyAuth } from "@/server/lib/auth";
+import { prisma } from "@/server/lib/prisma";
 
-const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+export async function POST(request) {
+  const { decoded, error } = verifyAuth(request);
+  if (error) return error;
 
-async function POST(request) {
+  const { originalSessionId } = await request.json();
+
+  if (!originalSessionId) {
+    return NextResponse.json({ error: "Missing required field: originalSessionId" }, { status: 400 });
+  }
+
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get("authorization");
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized - No token provided" },
-        { status: 401 }
-      );
-    }
-
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-
-    // Verify the JWT token
-    let decoded;
-    try {
-      decoded = jwt.verify(token, JWT_SECRET);
-    } catch (error) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    const userId = decoded.userId;
-
-    // Parse the request body
-    const body = await request.json();
-    const { originalSessionId } = body;
-
-    // Validate required fields
-    if (!originalSessionId) {
-      return NextResponse.json(
-        { error: "Missing required field: originalSessionId" },
-        { status: 400 }
-      );
-    }
-
-    // Get the original interview session with JD, Resume, and Questions
     const originalSession = await prisma.interviewSession.findFirst({
-      where: {
-        id: originalSessionId,
-        userId: userId, // Ensure user owns the session
-      },
+      where: { id: originalSessionId, userId: decoded.userId },
       include: {
         jd: true,
         resume: true,
-        questions: {
-          orderBy: {
-            order: "asc",
-          },
-        },
+        questions: { orderBy: { order: "asc" } },
       },
     });
 
@@ -72,10 +36,9 @@ async function POST(request) {
       );
     }
 
-    // Create a new interview session using the same JD and Resume
     const newSession = await prisma.interviewSession.create({
       data: {
-        userId: userId,
+        userId: decoded.userId,
         resumeId: originalSession.resumeId,
         jdId: originalSession.jdId,
         status: "ACTIVE",
@@ -83,27 +46,17 @@ async function POST(request) {
       },
     });
 
-    // Copy the exact same questions from the original session
-    const questionPromises = originalSession.questions.map((originalQuestion) =>
-      prisma.question.create({
-        data: {
-          sessionId: newSession.id,
-          questionText: originalQuestion.questionText,
-          order: originalQuestion.order,
-        },
-      })
-    );
+    await prisma.question.createMany({
+      data: originalSession.questions.map((q) => ({
+        sessionId: newSession.id,
+        questionText: q.questionText,
+        order: q.order,
+      })),
+    });
 
-    await Promise.all(questionPromises);
-
-    // Update user's interview attempt count
     await prisma.user.update({
-      where: { id: userId },
-      data: {
-        interviewAttempts: {
-          increment: 1,
-        },
-      },
+      where: { id: decoded.userId },
+      data: { interviewAttempts: { increment: 1 } },
     });
 
     return NextResponse.json({
@@ -112,24 +65,7 @@ async function POST(request) {
       message: "Interview re-attempted successfully with original questions",
       questionsCount: originalSession.questions.length,
     });
-  } catch (error) {
-    console.error("Error re-attempting interview:", error);
-    const isPrismaErr = error && error.name && error.name.startsWith("Prisma");
-    if (isPrismaErr) {
-      const safeDetails = { name: error.name, message: error.message };
-      if (process.env.NODE_ENV === "development")
-        safeDetails.stack = error.stack;
-      return NextResponse.json(
-        { error: "Prisma error", details: safeDetails },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Failed to re-attempt interview" },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({ error: "Failed to re-attempt interview" }, { status: 500 });
   }
 }
-
-module.exports = { POST };
