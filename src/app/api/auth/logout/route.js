@@ -1,15 +1,5 @@
-
 import { NextResponse } from "next/server";
 
-async function POST() {
-  return NextResponse.json(
-    {
-      success: true,
-      message:
-        "Logout successful.",
-    },
-    { status: 200 }
-  );
+export async function POST() {
+  return NextResponse.json({ success: true, message: "Logout successful." });
 }
-
-module.exports = { POST };

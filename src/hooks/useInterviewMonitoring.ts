@@ -960,7 +960,6 @@ export const useInterviewMonitoring = ({
         // Wait for video to be ready
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {
-            console.error("⏱️ Video loading timeout");
             reject(new Error("Video timeout"));
           }, 10000);
 
@@ -975,7 +974,7 @@ export const useInterviewMonitoring = ({
           };
 
           video.onerror = (error) => {
-            console.error("❌ Video element error:", error);
+            console.error("Video element error:", error);
             clearTimeout(timeout);
             reject(new Error("Video error"));
           };
@@ -1056,7 +1055,7 @@ export const useInterviewMonitoring = ({
                       await faceMeshRef.current.send({ image: video });
                     } catch (sendError) {
                       console.error(
-                        "❌ Error sending frame to FaceMesh:",
+                        "Error sending frame to FaceMesh:",
                         sendError
                       );
                     }

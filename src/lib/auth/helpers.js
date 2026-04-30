@@ -62,6 +62,19 @@ const validatePassword = (password) => {
   return password && password.length >= 6;
 };
 
+const validatePasswordDetailed = (password) => {
+  const errors = [];
+  if (!password) {
+    errors.push("Password is required");
+  } else {
+    if (password.length < 8) errors.push("Password must be at least 8 characters long");
+    if (!/[a-zA-Z]/.test(password)) errors.push("Password must contain at least one letter");
+    if (!/\d/.test(password)) errors.push("Password must contain at least one number");
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push("Password must contain at least one special character");
+  }
+  return { valid: errors.length === 0, errors };
+};
+
 const validateName = (name) => {
   return name && name.trim().length >= 2;
 };
@@ -75,5 +88,6 @@ module.exports = {
   getUserFromToken,
   validateEmail,
   validatePassword,
+  validatePasswordDetailed,
   validateName,
 };

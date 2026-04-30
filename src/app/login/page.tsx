@@ -24,7 +24,7 @@ export default function Login() {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage("");
-    toast.loading("🔐 Logging in...", { id: "login-progress" });
+    toast.loading("Logging in...", { id: "login-progress" });
 
     try {
       const response = await fetch("/api/auth/login", {

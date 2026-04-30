@@ -14,7 +14,7 @@ export default function ForgotPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    toast.loading("🔄 Sending reset email...", { id: "forgot-password" });
+    toast.loading("Sending reset email...", { id: "forgot-password" });
 
     try {
       const response = await fetch("/api/auth/forgot-password", {
@@ -31,12 +31,12 @@ export default function ForgotPassword() {
         if (data.resetUrl) {
           // Development mode - show reset link
           setResetUrl(data.resetUrl);
-          toast.success("✅ Reset link generated! (Development mode)", {
+          toast.success("Reset link generated! (Development mode)", {
             id: "forgot-password",
           });
         } else {
           // Production mode - email sent
-          toast.success("✅ Password reset email sent! Check your inbox.", {
+          toast.success("Password reset email sent! Check your inbox.", {
             id: "forgot-password",
           });
         }
@@ -50,14 +50,14 @@ export default function ForgotPassword() {
           });
           router.push("/signup");
         } else {
-          toast.error(data.message || "❌ Failed to send reset email.", {
+          toast.error(data.message || "Failed to send reset email.", {
             id: "forgot-password",
           });
         }
       }
     } catch (error) {
       console.error("Forgot password error:", error);
-      toast.error("❌ Network error. Please try again.", {
+      toast.error("Network error. Please try again.", {
         id: "forgot-password",
       });
     } finally {

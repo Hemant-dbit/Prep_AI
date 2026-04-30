@@ -1,48 +1,21 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { verifyToken } from "@/lib/auth/helpers.js";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/server/lib/prisma";
+import { verifyAuth } from "@/server/lib/auth";
 
 export async function GET(request, { params }) {
+  const { decoded, error } = verifyAuth(request);
+  if (error) return error;
+
+  const { interviewId } = await params;
+
+  if (!interviewId) {
+    return NextResponse.json({ error: "Interview ID is required" }, { status: 400 });
+  }
+
   try {
-    const token = request.headers.get("authorization")?.replace("Bearer ", "");
-
-    if (!token) {
-      return NextResponse.json(
-        { error: "Authorization token required" },
-        { status: 401 }
-      );
-    }
-
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    const userId = decoded.userId;
-    const interviewId = params.interviewId;
-
-    if (!interviewId) {
-      return NextResponse.json(
-        { error: "Interview ID is required" },
-        { status: 400 }
-      );
-    }
-
-    // Fetch the interview session with complete details
-    const interviewSession = await prisma.interviewSession.findUnique({
-      where: {
-        id: interviewId,
-      },
+    const session = await prisma.interviewSession.findUnique({
+      where: { id: interviewId },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
         jd: true,
         resume: true,
         questions: {
@@ -52,62 +25,44 @@ export async function GET(request, { params }) {
               take: 1,
             },
           },
-          orderBy: {
-            order: "asc",
-          },
+          orderBy: { order: "asc" },
         },
       },
     });
 
-    if (!interviewSession) {
-      return NextResponse.json(
-        { error: "Interview session not found" },
-        { status: 404 }
-      );
+    if (!session) {
+      return NextResponse.json({ error: "Interview session not found" }, { status: 404 });
     }
 
-    // Check if the user owns this session
-    if (interviewSession.userId !== userId) {
-      return NextResponse.json(
-        { error: "Unauthorized access to this interview session" },
-        { status: 403 }
-      );
+    if (session.userId !== decoded.userId) {
+      return NextResponse.json({ error: "Unauthorized access to this interview session" }, { status: 403 });
     }
 
-    // Process the results
-    const questionResults = interviewSession.questions.map((question) => {
-      const answer = question.answers[0]; // Assuming one answer per question
+    const questionResults = session.questions.map((q) => {
+      const answer = q.answers[0];
       return {
-        questionId: question.id,
-        questionText: question.questionText,
-        order: question.order,
-        answer: answer ? answer.candidateAnswer : null,
-        score: answer ? answer.score : null,
-        feedback: answer ? answer.feedback : null,
-        strengths: answer ? answer.strengths : null,
-        improvements: answer ? answer.improvements : null,
-        submittedAt: answer ? answer.submittedAt : null,
+        questionId: q.id,
+        questionText: q.questionText,
+        order: q.order,
+        answer: answer?.candidateAnswer ?? null,
+        score: answer?.score ?? null,
+        feedback: answer?.feedback ?? null,
+        strengths: answer?.strengths ?? null,
+        improvements: answer?.improvements ?? null,
+        submittedAt: answer?.submittedAt ?? null,
       };
     });
 
-    // Calculate overall statistics
     const answersWithScores = questionResults.filter((q) => q.score !== null);
     const overallScore =
       answersWithScores.length > 0
-        ? answersWithScores.reduce((sum, q) => sum + q.score, 0) /
-          answersWithScores.length
+        ? answersWithScores.reduce((sum, q) => sum + q.score, 0) / answersWithScores.length
         : 0;
 
-    const totalQuestions = interviewSession.questions.length;
-    const answeredQuestions = questionResults.filter(
-      (q) => q.answer !== null
-    ).length;
-    const completionPercentage =
-      totalQuestions > 0
-        ? Math.round((answeredQuestions / totalQuestions) * 100)
-        : 0;
+    const totalQuestions = session.questions.length;
+    const answeredQuestions = questionResults.filter((q) => q.answer !== null).length;
+    const completionPercentage = totalQuestions > 0 ? Math.round((answeredQuestions / totalQuestions) * 100) : 0;
 
-    // Determine grade
     let grade = "Not Graded";
     if (overallScore >= 9) grade = "Excellent";
     else if (overallScore >= 8) grade = "Very Good";
@@ -116,40 +71,27 @@ export async function GET(request, { params }) {
     else if (overallScore >= 5) grade = "Below Average";
     else if (overallScore > 0) grade = "Needs Improvement";
 
-    const result = {
-      sessionId: interviewSession.id,
-      jobRole:
-        interviewSession.jd?.parsedData?.title ||
-        interviewSession.jd?.parsedData?.jobRole ||
-        "Unknown Position",
-      experienceLevel:
-        interviewSession.jd?.parsedData?.expReq ||
-        interviewSession.jd?.parsedData?.experienceLevel ||
-        "0",
-      createdAt: interviewSession.startedAt,
-      updatedAt: interviewSession.updatedAt,
-      status: interviewSession.status,
-      overallScore: parseFloat(overallScore.toFixed(1)),
-      grade: grade,
-      totalQuestions: totalQuestions,
-      answeredQuestions: answeredQuestions,
-      completionPercentage: completionPercentage,
-      questionResults: questionResults,
-      jobDescription: interviewSession.jd?.parsedData || null,
-      candidateInfo: interviewSession.resume?.parsedData || null,
-    };
-
     return NextResponse.json({
       success: true,
-      data: result,
+      data: {
+        sessionId: session.id,
+        jobRole: session.jd?.parsedData?.title || session.jd?.parsedData?.jobRole || "Unknown Position",
+        experienceLevel: session.jd?.parsedData?.expReq || session.jd?.parsedData?.experienceLevel || "0",
+        createdAt: session.startedAt,
+        updatedAt: session.updatedAt,
+        status: session.status,
+        overallScore: parseFloat(overallScore.toFixed(1)),
+        grade,
+        totalQuestions,
+        answeredQuestions,
+        completionPercentage,
+        questionResults,
+        jobDescription: session.jd?.parsedData || null,
+        candidateInfo: session.resume?.parsedData || null,
+      },
     });
-  } catch (error) {
-    console.error("❌ Error fetching interview details:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  } finally {
-    // keep Prisma client alive across requests in dev/server mode
+  } catch (err) {
+    console.error("❌ Error fetching interview details:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -1,65 +1,24 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/server/lib/prisma";
 
-
-const prisma = new PrismaClient();
-
-async function POST(request) {
+export async function POST(request) {
   try {
-    const body = await request.json();
-    const { token, email } = body;
+    const { token } = await request.json();
 
     if (!token) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Reset token is required",
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: "Reset token is required" }, { status: 400 });
     }
 
-    // Find user with this reset token
     const user = await prisma.user.findFirst({
-      where: {
-        resetToken: token,
-        resetTokenExpiry: {
-          gt: new Date(), // Token should not be expired
-        },
-      },
+      where: { resetToken: token, resetTokenExpiry: { gt: new Date() } },
     });
 
     if (!user) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid or expired reset token",
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: "Invalid or expired reset token" }, { status: 400 });
     }
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Reset token is valid",
-      },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error("Token validation error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Internal server error",
-        error:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
-      },
-      { status: 500 }
-    );
-  } finally {
-    // keep Prisma client alive across requests in dev/server mode
+    return NextResponse.json({ success: true, message: "Reset token is valid" });
+  } catch {
+    return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 });
   }
 }
-
-module.exports = { POST };

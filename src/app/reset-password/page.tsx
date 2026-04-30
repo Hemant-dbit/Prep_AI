@@ -70,17 +70,17 @@ function ResetPasswordContent() {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      toast.error("❌ Passwords don't match");
+      toast.error("Passwords don't match");
       return;
     }
 
     if (password.length < 6) {
-      toast.error("❌ Password must be at least 6 characters long");
+      toast.error("Password must be at least 6 characters long");
       return;
     }
 
     setIsLoading(true);
-    toast.loading("🔄 Resetting password...", { id: "reset-password" });
+    toast.loading("Resetting password...", { id: "reset-password" });
 
     try {
       const response = await fetch("/api/auth/reset-password", {
@@ -94,7 +94,7 @@ function ResetPasswordContent() {
       const data = await response.json();
 
       if (data.success) {
-        toast.success("✅ Password reset successfully!", {
+        toast.success("Password reset successfully!", {
           id: "reset-password",
         });
 
@@ -103,13 +103,13 @@ function ResetPasswordContent() {
           router.push("/login");
         }, 2000);
       } else {
-        toast.error(data.message || "❌ Failed to reset password", {
+        toast.error(data.message || "Failed to reset password", {
           id: "reset-password",
         });
       }
     } catch (error) {
       console.error("Reset password error:", error);
-      toast.error("❌ Network error. Please try again.", {
+      toast.error("Network error. Please try again.", {
         id: "reset-password",
       });
     } finally {

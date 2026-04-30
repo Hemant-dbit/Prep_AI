@@ -264,9 +264,6 @@ const InterviewUI: React.FC<InterviewUIProps> = ({ sessionId }) => {
           // Start monitoring immediately when questions are loaded
           if (!monitoringStarted) {
             setMonitoringStarted(true);
-            // console.log("Starting camera monitoring immediately...");
-            // startCameraMonitoring is stable from the hook and safe to call
-            // eslint-disable-next-line react-hooks/exhaustive-deps
             startCameraMonitoring();
           }
         } else {
@@ -303,7 +300,6 @@ const InterviewUI: React.FC<InterviewUIProps> = ({ sessionId }) => {
       }
     };
     // Only re-run when sessionId changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   // Start camera monitoring immediately when component mounts
