@@ -9,7 +9,7 @@ import {
   cacheInterviews,
   invalidateInterviewCache,
   isCacheValid,
-} from "@/utils/interviewCache";
+} from "@/client/lib/interviewCache";
 
 interface Interview {
   id: string;

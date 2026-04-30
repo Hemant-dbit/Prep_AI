@@ -3,10 +3,10 @@
 import NavBar from "@/components/navigation/NavBar";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/client/context/AuthContext";
 import { useState, useEffect } from "react";
 import Loading, { InlineLoading } from "@/components/ui/Loading";
-import Pricing from "./pricing/page";
+import Pricing from "./(marketing)/pricing/page";
 
 interface AnalyticsData {
   totalInterviews: number;

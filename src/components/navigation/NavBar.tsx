@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import React, { useState, useEffect, useRef } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/client/context/AuthContext";
+import { authService } from "@/client/services/auth.service";
 
 // Import your NavBar component
 const NavBar = () => {
@@ -42,14 +43,9 @@ const NavBar = () => {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
-      });
-    } catch (error) {
-      console.error("Logout API error:", error);
+      await authService.logout();
+    } catch {
+      // logout is best-effort
     } finally {
       logout();
       setShowDropdown(false);

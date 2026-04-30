@@ -10,8 +10,8 @@ import {
   Sparkles,
   User,
 } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
-import { useUsageStats } from "../../hooks/useUsageStats";
+import { useAuth } from "../../client/context/AuthContext";
+import { useUsageStats } from "@/client/hooks/useUsageStats";
 import { useState } from "react";
 
 export default function LeftPanel() {

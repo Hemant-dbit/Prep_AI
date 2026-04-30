@@ -9,7 +9,7 @@ import ResumeDisplay from "../resume/ResumeDisplay";
 import toast from "react-hot-toast";
 import { ButtonLoading } from "../ui/Loading";
 import Loading from "../ui/Loading";
-import { invalidateInterviewCache } from "@/utils/interviewCache";
+import { invalidateInterviewCache } from "@/client/lib/interviewCache";
 
 interface InterviewSetupProps {
   interviewId?: string;

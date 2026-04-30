@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/server/lib/prisma";
-import { validateEmail } from "@/lib/auth/helpers";
+import { validateEmail } from "@/server/lib/helpers";
 import { Resend } from "resend";
 import crypto from "crypto";
 

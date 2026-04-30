@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/server/lib/prisma";
-import { comparePassword, generateToken, excludePassword, validateEmail } from "@/lib/auth/helpers";
+import { comparePassword, generateToken, excludePassword, validateEmail } from "@/server/lib/helpers";
 
 export async function POST(request) {
   try {

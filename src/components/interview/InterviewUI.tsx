@@ -9,10 +9,10 @@ import QuestionsSections from "./QuestionsSections";
 import Avatar from "./Avatar";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
-import { useInterviewMonitoring } from "@/hooks/useInterviewMonitoring";
-import { useAuth } from "@/context/AuthContext";
+import { useInterviewMonitoring } from "@/client/hooks/useInterviewMonitoring";
+import { useAuth } from "@/client/context/AuthContext";
 import Loading from "../ui/Loading";
-import { invalidateInterviewCache } from "@/utils/interviewCache";
+import { invalidateInterviewCache } from "@/client/lib/interviewCache";
 
 // Dynamic imports to prevent window undefined errors
 const RecordAnswerSection = dynamic(() => import("./RecordAnswerSection"), {
