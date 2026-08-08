@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import useSpeechToText from "react-hook-speech-to-text";
+import { interviewService } from "@/client/services/interview.service";
 import { Mic, StopCircle, Circle, Video, VideoOff } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Button } from "../ui/button";
@@ -252,32 +253,11 @@ const RecordAnswerSection: React.FC<RecordAnswerSectionProps> = ({
     // Fire-and-forget network request to persist the answer
     (async () => {
       try {
-        const token = localStorage.getItem("authToken");
-        if (!token) {
-          console.warn("No auth token for persisting answer");
-          return;
-        }
-
-        const response = await fetch("/api/interview/answer", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            sessionId: sessionId,
-            questionId: currentQuestion._id,
-            answer: userAnswer.trim(),
-          }),
-        });
-
-        const data = await response.json();
-        if (!data.success) {
-          console.warn("Server failed to persist answer", data);
-          toast.error("⚠️ Failed to persist answer to server", {
-            id: "answer-persist",
-          });
-        }
+        await interviewService.submitAnswer(
+          sessionId,
+          currentQuestion._id,
+          userAnswer.trim()
+        );
       } catch (err) {
         console.error("Network error persisting answer", err);
         toast.error("⚠️ Network error persisting answer", {
