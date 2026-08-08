@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "../ui/button";
+import { resumeService } from "@/client/services/resume.service";
 import { Card } from "../ui/card";
 import toast from "react-hot-toast";
 import { ButtonLoading, InlineLoading } from "../ui/Loading";
@@ -40,12 +41,6 @@ const ResumeUpload: React.FC<ResumeUploadProps> = ({
     toast.loading("📂 Starting resume upload...", { id: "upload-progress" });
 
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        toast.error("Please login to upload resume");
-        throw new Error("No authentication token found");
-      }
-
       const formData = new FormData();
       formData.append("resume", file);
       formData.append("fileName", file.name);
@@ -55,25 +50,7 @@ const ResumeUpload: React.FC<ResumeUploadProps> = ({
         id: "upload-progress",
       });
 
-      const response = await fetch("/api/resume/upload", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        toast.error("Failed to upload resume");
-        throw new Error("Failed to upload resume");
-      }
-
-      setUploadStage("Processing PDF content...");
-      toast.loading("📄 Extracting text from PDF...", {
-        id: "upload-progress",
-      });
-
-      const data = await response.json();
+      const data: any = await resumeService.upload(formData);
 
       if (data.success) {
         setUploadStage("Parsing resume data...");

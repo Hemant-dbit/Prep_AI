@@ -1,6 +1,7 @@
 import { Progress } from "../ui/progress";
 import { Button } from "../ui/button";
 import React, { useState, useEffect, useRef } from "react";
+import { interviewService } from "@/client/services/interview.service";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -138,22 +139,12 @@ const InterviewUI: React.FC<InterviewUIProps> = ({ sessionId }) => {
       console.warn("Failed to stop camera during termination", err);
     }
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) return;
-
       // Mark interview as terminated in database
-      await fetch("/api/interview/terminate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          sessionId,
-          reason: "Multiple monitoring violations",
-          warningCount,
-        }),
-      });
+      await interviewService.terminate(
+        sessionId,
+        "Multiple monitoring violations",
+        warningCount
+      );
 
       // Redirect to dashboard with message
       setTimeout(() => {
@@ -541,29 +532,14 @@ const InterviewUI: React.FC<InterviewUIProps> = ({ sessionId }) => {
   const handleSeeScore = async () => {
     // Finish interview and get final results
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        toast.error(" Please login to view results");
-        return;
-      }
-
       toast.loading("📊 Calculating your final score...", {
         id: `final-score-loading-${sessionId}`,
       });
 
-      const response = await fetch("/api/interview/finish", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ sessionId }),
-      });
+      const data: any = await interviewService.finish(sessionId);
 
       //Dismiss final score toast
       toast.dismiss(`final-score-loading-${sessionId}`);
-
-      const data = await response.json();
 
       if (data.success) {
         setFinalResults(data.data);

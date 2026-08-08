@@ -1,5 +1,6 @@
 "use client";
 import React, { use, useEffect, useState, useRef } from "react";
+import { interviewService } from "@/client/services/interview.service";
 import PreviousInterviewCard from "./PreviousInterviewCard";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
@@ -59,22 +60,7 @@ const PreviousMockContainer = () => {
 
   const fetchCompletedInterviews = async () => {
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        setError("Please login to view your interview history");
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch("/api/interview/completed", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
+      const data: any = await interviewService.getCompleted();
 
       if (data.success) {
         const fetchedInterviews = data.data.interviews;
@@ -120,11 +106,6 @@ const PreviousMockContainer = () => {
     try {
       if (reattemptingRef.current[interviewId]) return;
       reattemptingRef.current[interviewId] = true;
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        toast.error(" Please login to re-attempt interview");
-        return;
-      }
 
       // Show loading toast while creating a new session
       const loadingToastId = toast.loading(
@@ -132,18 +113,7 @@ const PreviousMockContainer = () => {
         { id: `reattempt-loading-${interviewId}` }
       );
 
-      const response = await fetch("/api/interview/reattempt", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          originalSessionId: interviewId,
-        }),
-      });
-
-      const data = await response.json();
+      const data: any = await interviewService.reattempt(interviewId);
 
       // Dismiss loading toast
       toast.dismiss(loadingToastId);

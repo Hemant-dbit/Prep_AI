@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { resumeService } from "@/client/services/resume.service";
+import { interviewService } from "@/client/services/interview.service";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { Input } from "../ui/input";
@@ -85,22 +87,9 @@ const InterviewSetup: React.FC<InterviewSetupProps> = ({ interviewId }) => {
 
   const fetchExistingResumes = async () => {
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) return;
-
-      const response = await fetch("/api/resume/upload", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setExistingResumes(data.resumes);
-        }
+      const data: any = await resumeService.getAll();
+      if (data.success) {
+        setExistingResumes(data.resumes);
       }
     } catch (error) {
       toast.error(" Failed to load existing resumes");
@@ -131,33 +120,13 @@ const InterviewSetup: React.FC<InterviewSetupProps> = ({ interviewId }) => {
     setCreatingInterview(true);
 
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        alert("Please log in to continue");
-        isSubmittingRef.current = false;
-        setCreatingInterview(false);
-        return;
-      }
-
-      const response = await fetch("/api/interview/create", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          jobRole: formData.jobRole,
-          jobDescription: formData.jobDescription,
-          experienceYears: parseInt(formData.experienceYears),
-          existingResumeId: selectedResume?.id,
-        }),
+      const data: any = await interviewService.create({
+        jobRole: formData.jobRole,
+        jobDescription: formData.jobDescription,
+        experienceYears: parseInt(formData.experienceYears),
+        existingResumeId: selectedResume?.id,
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to create interview session");
-      }
-
-      const data = await response.json();
       if (data.success) {
         // Invalidate interview cache since a new interview was created
         // We're the originator — avoid triggering a global refresh callback.
