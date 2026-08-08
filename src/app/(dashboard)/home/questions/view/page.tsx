@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
+import { questionsService } from "@/client/services/questions.service";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   BookOpen,
@@ -95,19 +96,7 @@ function ViewQuestionsContent() {
     setError("");
 
     try {
-      const response = await fetch("/api/questions/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ category }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch questions");
-      }
-
-      const data = await response.json();
+      const data: any = await questionsService.generate(category);
       setQuestions(data.questions || []);
     } catch (err) {
       setError(

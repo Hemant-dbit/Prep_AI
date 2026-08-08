@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { questionsService } from "@/client/services/questions.service";
 import {
   BookOpen,
   Code,
@@ -83,19 +84,7 @@ export default function QuestionBankPage() {
     setError("");
 
     try {
-      const response = await fetch("/api/questions/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ category }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch questions");
-      }
-
-      const data = await response.json();
+      const data: any = await questionsService.generate(category);
 
       // Update questions and category counts
       const newQuestions = data.questions || [];

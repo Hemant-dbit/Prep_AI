@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { resumeService } from "@/client/services/resume.service";
 import toast from "react-hot-toast";
 import {
   ArrowLeft,
@@ -74,30 +75,15 @@ export default function ResumeDetailsPage() {
   const fetchResumeDetails = async (resumeId: string) => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("authToken");
-      if (!token) return;
-
-      const response = await fetch(`/api/resume/details/${resumeId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setResume(data.resume);
-          toast.success("Resume details loaded successfully!", {
-            duration: 3000,
-            position: "top-right",
-          });
-        } else {
-          setError(data.error || "Failed to load resume details");
-          toast.error("Failed to load resume details");
-        }
+      const data: any = await resumeService.getDetails(resumeId);
+      if (data.success) {
+        setResume(data.resume);
+        toast.success("Resume details loaded successfully!", {
+          duration: 3000,
+          position: "top-right",
+        });
       } else {
-        setError("Failed to load resume details");
+        setError(data.error || "Failed to load resume details");
         toast.error("Failed to load resume details");
       }
     } catch (err) {

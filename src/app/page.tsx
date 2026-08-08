@@ -1,6 +1,7 @@
 "use client";
 
 import NavBar from "@/components/navigation/NavBar";
+import { userService } from "@/client/services/user.service";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/client/context/AuthContext";
@@ -50,21 +51,8 @@ export default function Home() {
   const fetchAnalyticsData = async () => {
     try {
       setAnalyticsLoading(true);
-      const token = localStorage.getItem("authToken");
-      if (!token) return;
-
-      const response = await fetch("/api/analytics", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAnalyticsData(data.analytics);
-      }
+      const data: any = await userService.getAnalytics();
+      setAnalyticsData(data.analytics);
     } catch (error) {
       console.error("Error fetching analytics:", error);
     } finally {
@@ -213,11 +201,11 @@ export default function Home() {
                       <button
                         onClick={() =>
                           window.open(
-                            "https://github.com/patiladitya77/Prep-AI",
-                            "_blank"
+                            "https://github.com/Hemant-dbit/Prep_AI",
+                            "_blank",
                           )
                         }
-                        className="border border-gray-300 text-gray-700 px-8 py-3 rounded-md font-medium hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        className="border  border-gray-300 cursor-pointer text-gray-700 px-8 py-3 rounded-md font-medium hover:bg-gray-50 transition-colors flex items-center gap-2"
                       >
                         <svg
                           className="w-5 h-5"
@@ -355,7 +343,7 @@ export default function Home() {
                                 <p className="text-3xl font-bold text-green-600">
                                   {isAuthenticated && analyticsData
                                     ? `${Math.round(
-                                        analyticsData.averageScore
+                                        analyticsData.averageScore,
                                       )}%`
                                     : "89%"}
                                 </p>
@@ -400,7 +388,7 @@ export default function Home() {
                                         <span className="text-gray-700">
                                           {interview.jdData?.title ||
                                             `Interview Session #${interview.id.slice(
-                                              -4
+                                              -4,
                                             )}`}
                                         </span>
                                         <span
@@ -408,14 +396,14 @@ export default function Home() {
                                             interview.status === "COMPLETED"
                                               ? "bg-green-100 text-green-800"
                                               : interview.status ===
-                                                "IN_PROGRESS"
-                                              ? "bg-blue-100 text-blue-800"
-                                              : "bg-yellow-100 text-yellow-800"
+                                                  "IN_PROGRESS"
+                                                ? "bg-blue-100 text-blue-800"
+                                                : "bg-yellow-100 text-yellow-800"
                                           }`}
                                         >
                                           {interview.status === "COMPLETED"
                                             ? `Score: ${Math.round(
-                                                interview.score || 0
+                                                interview.score || 0,
                                               )}%`
                                             : interview.status.charAt(0) +
                                               interview.status
@@ -516,7 +504,7 @@ export default function Home() {
                         onClick={() =>
                           window.open(
                             "https://github.com/patiladitya77/Prep-AI",
-                            "_blank"
+                            "_blank",
                           )
                         }
                         className="text-gray-400 hover:text-white transition-colors"
@@ -599,7 +587,7 @@ export default function Home() {
                           onClick={() =>
                             window.open(
                               "https://github.com/patiladitya77/Prep-AI",
-                              "_blank"
+                              "_blank",
                             )
                           }
                           className="text-gray-400 hover:text-white transition-colors cursor-pointer"
@@ -619,7 +607,7 @@ export default function Home() {
                           onClick={() =>
                             window.open(
                               "https://github.com/patiladitya77/Prep-AI",
-                              "_blank"
+                              "_blank",
                             )
                           }
                           className="text-gray-400 hover:text-white transition-colors cursor-pointer"

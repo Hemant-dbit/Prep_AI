@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/client/context/AuthContext";
+import { userService } from "@/client/services/user.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -349,21 +350,8 @@ export default function Analytics() {
 
   const fetchAnalytics = async () => {
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) return;
-
-      const response = await fetch("/api/analytics", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAnalytics(data.analytics);
-      }
+      const data: any = await userService.getAnalytics();
+      setAnalytics(data.analytics);
     } catch (error) {
       console.error("Error fetching analytics:", error);
     } finally {

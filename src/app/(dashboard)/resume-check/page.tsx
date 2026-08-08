@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { resumeService } from "@/client/services/resume.service";
 
 interface AnalysisResult {
   overallScore: number;
@@ -83,16 +84,7 @@ export default function ResumeCheckPage() {
       formData.append("resume", uploadedFile);
       formData.append("jobDescription", jobDescription);
 
-      const token = localStorage.getItem("authToken");
-      const response = await fetch("/api/resume/analyze", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      const data = await response.json();
+      const data: any = await resumeService.analyze(formData);
 
       if (data.success) {
         setAnalysisResult(data.analysis);

@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/client/context/AuthContext";
+import { interviewService } from "@/client/services/interview.service";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -62,22 +63,7 @@ export default function InterviewResultsPage() {
 
   const fetchInterviewResults = async () => {
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        toast.error("Please login to view results");
-        router.push("/login");
-        return;
-      }
-
-      const response = await fetch(`/api/interview/${interviewId}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
+      const data: any = await interviewService.getResults(interviewId);
 
       if (data.success) {
         setResults(data.data);
@@ -97,29 +83,13 @@ export default function InterviewResultsPage() {
     try {
       if (reattemptingRef.current) return;
       reattemptingRef.current = true;
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        toast.error("❌ Please login to re-attempt interview");
-        return;
-      }
 
       // Show loading toast
       const loadingToast = toast.loading(
         "🔄 Creating new interview session..."
       );
 
-      const response = await fetch("/api/interview/reattempt", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          originalSessionId: interviewId,
-        }),
-      });
-
-      const data = await response.json();
+      const data: any = await interviewService.reattempt(interviewId);
 
       toast.dismiss(loadingToast);
 

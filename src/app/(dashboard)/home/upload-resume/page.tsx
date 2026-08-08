@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { resumeService } from "@/client/services/resume.service";
 import Link from "next/link";
 import {
   Upload,
@@ -44,39 +45,23 @@ export default function UploadResumePage() {
   const loadResumes = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch("/api/resume/upload", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          // Format the resumes to match our component structure
-          const formattedResumes = data.resumes.map((resume: any) => ({
-            id: resume.id,
-            fileName: resume.file_name,
-            uploadedAt: resume.createdAt,
-            fileSize: resume.parsedData?.fileSize || 0,
-            status: "completed" as const,
-            analysis: {
-              score: Math.floor(Math.random() * 30) + 70, // Mock score between 70-100
-              skills: resume.parsedData?.skills || [],
-              suggestions: [], // Add suggestions if available in parsedData
-            },
-            // No direct file URL since files aren't stored, but we have parsedData
-          }));
-          setResumes(formattedResumes);
-        }
+      const data: any = await resumeService.getAll();
+      if (data.success) {
+        // Format the resumes to match our component structure
+        const formattedResumes = data.resumes.map((resume: any) => ({
+          id: resume.id,
+          fileName: resume.file_name,
+          uploadedAt: resume.createdAt,
+          fileSize: resume.parsedData?.fileSize || 0,
+          status: "completed" as const,
+          analysis: {
+            score: Math.floor(Math.random() * 30) + 70, // Mock score between 70-100
+            skills: resume.parsedData?.skills || [],
+            suggestions: [], // Add suggestions if available in parsedData
+          },
+          // No direct file URL since files aren't stored, but we have parsedData
+        }));
+        setResumes(formattedResumes);
       }
     } catch (err) {
       console.error("Error loading resumes:", err);
@@ -125,29 +110,12 @@ export default function UploadResumePage() {
     setUploadProgress("Uploading resume...");
 
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        throw new Error("Please login to upload resume");
-      }
-
       const formData = new FormData();
       formData.append("resume", selectedFile);
 
       setUploadProgress("Processing with AI...");
 
-      const response = await fetch("/api/resume/upload", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
-
-      const data = await response.json();
+      const data: any = await resumeService.upload(formData);
 
       if (data.success) {
         // Add new resume to the list using the actual response data
@@ -182,19 +150,8 @@ export default function UploadResumePage() {
 
   const deleteResume = async (id: string) => {
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) return;
-
-      const response = await fetch(`/api/resume/delete/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        setResumes((prev) => prev.filter((resume) => resume.id !== id));
-      }
+      await resumeService.delete(id);
+      setResumes((prev) => prev.filter((resume) => resume.id !== id));
     } catch (err) {
       console.error("Error deleting resume:", err);
     }
